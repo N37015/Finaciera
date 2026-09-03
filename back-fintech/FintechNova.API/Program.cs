@@ -6,9 +6,12 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configuración del puerto dinámico para Render y desarrollo local
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
 var jwtSettings = builder.Configuration.GetSection("Jwt");
 var secretKey = jwtSettings["Key"];
-
 // CORS
 builder.Services.AddCors(options =>
 {

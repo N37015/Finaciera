@@ -66,25 +66,26 @@ export default function SolicitarPrestamoPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-6">
-      <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-md p-8">
+    <div className="min-h-screen bg-slate-50 py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+      <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-6 sm:p-8">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-800">Solicitar Préstamo</h2>
-          <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-800">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Solicitar Préstamo</h2>
+          <Link href="/dashboard" className="text-xs sm:text-sm text-slate-500 hover:text-slate-800 transition-colors">
             ← Volver al Panel
           </Link>
         </div>
 
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm">
+          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-xs sm:text-sm">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
+          {/* Se adapta de 2 columnas en pantallas medianas/grandes a 1 columna en celulares */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Monto Solicitado ($)</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Monto Solicitado ($)</label>
               <input
                 type="number"
                 name="monto"
@@ -92,18 +93,18 @@ export default function SolicitarPrestamoPage() {
                 step="100"
                 value={formData.monto}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Ej. 10000"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Plazo (Meses)</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Plazo (Meses)</label>
               <select
                 name="meses"
                 value={formData.meses}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
               >
                 <option value="6">6 Meses</option>
                 <option value="12">12 Meses</option>
@@ -114,13 +115,13 @@ export default function SolicitarPrestamoPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">CURP</label>
+            <label className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">CURP</label>
             <input
               type="text"
               name="curp"
               value={formData.curp}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 uppercase"
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 uppercase text-sm"
               placeholder="Ingresa tu CURP (18 caracteres)"
               maxLength={18}
               required
@@ -128,28 +129,28 @@ export default function SolicitarPrestamoPage() {
           </div>
 
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
-            <h3 className="text-sm font-bold text-slate-700">Validación de Identidad</h3>
+            <h3 className="text-xs sm:text-sm font-bold text-slate-700">Validación de Identidad</h3>
             
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Foto de Credencial (INE)</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-600 mb-1">Foto de Credencial (INE)</label>
               <input 
                 type="file"
                 name="ine"
                 accept="image/png, image/jpeg, application/pdf"
                 onChange={handleFileChange}
-                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="w-full text-xs sm:text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Comprobante de Domicilio (Luz/Agua)</label>
+              <label className="block text-xs sm:text-sm font-medium text-slate-600 mb-1">Comprobante de Domicilio (Luz/Agua)</label>
               <input 
                 type="file"
                 name="reciboLuzAgua"
                 accept="image/png, image/jpeg, application/pdf"
                 onChange={handleFileChange}
-                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="w-full text-xs sm:text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                 required
               />
             </div>
@@ -158,7 +159,7 @@ export default function SolicitarPrestamoPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400"
+            className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 text-sm sm:text-base shadow-sm"
           >
             {loading ? 'Procesando...' : 'Enviar Solicitud a Revisión'}
           </button>

@@ -13,7 +13,6 @@ export default function AdminDashboardPage() {
   const [montoSpei, setMontoSpei] = useState('');
 
   useEffect(() => {
-    // CAMBIADO A SESSIONSTORAGE PARA EVITAR CRUCE DE SESIONES ENTRE PESTAÑAS
     const userData = sessionStorage.getItem('usuario');
     if (!userData) {
       router.push('/login');
@@ -88,149 +87,157 @@ export default function AdminDashboardPage() {
     }
   };
 
-  if (loading) return <div className="p-8">Cargando panel de administrador...</div>;
+  if (loading) return <div className="p-8 text-center text-slate-600">Cargando panel de administrador...</div>;
 
   return (
-    <div className="p-8 space-y-8">
-      <h1 className="text-3xl font-bold text-slate-800">Backoffice: Control de Préstamos y Operaciones</h1>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto">
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Backoffice: Control de Préstamos y Operaciones</h1>
       
       {/* SECCIÓN 1: SOLICITUDES PENDIENTES */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Solicitudes Pendientes</h2>
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 overflow-hidden">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-slate-800">Solicitudes Pendientes</h2>
         
         {solicitudes.length === 0 ? (
-          <p className="text-slate-500">No hay solicitudes pendientes por revisar.</p>
+          <p className="text-slate-500 text-sm">No hay solicitudes pendientes por revisar.</p>
         ) : (
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b bg-slate-50">
-                <th className="p-3">ID</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">CURP</th>
-                <th className="p-3">Monto Solicitado</th>
-                <th className="p-3">Documentos</th>
-                <th className="p-3">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {solicitudes.map((s) => (
-                <tr key={s.idSolicitud} className="border-b hover:bg-slate-50">
-                  <td className="p-3">#{s.idSolicitud}</td>
-                  <td className="p-3 font-medium text-slate-800">{s.nombreCliente}</td>
-                  <td className="p-3 text-slate-600 text-sm">{s.curp}</td>
-                  <td className="p-3 font-bold text-blue-600">${s.montoSolicitado} <span className="text-xs text-slate-500 font-normal">({s.plazoMeses}m)</span></td>
-                  
-                  <td className="p-3">
-                    <div className="flex flex-col gap-1 text-xs">
-                      <a 
-                        href={s.ine !== 'Pendiente' ? '#' : undefined} 
-                        onClick={(e) => { e.preventDefault(); alert(`Mostrando archivo:\n${s.ine}`); }}
-                        className="text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        📄 INE
-                      </a>
-                      <a 
-                        href={s.recibo !== 'Pendiente' ? '#' : undefined} 
-                        onClick={(e) => { e.preventDefault(); alert(`Mostrando archivo:\n${s.recibo}`); }}
-                        className="text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        📄 Luz/Agua
-                      </a>
-                    </div>
-                  </td>
-
-                  <td className="p-3">
-                    <button 
-                      onClick={() => aprobarSolicitud(s.idSolicitud)}
-                      className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 text-sm font-semibold"
-                    >
-                      Aprobar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+              <table className="min-w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-xs sm:text-sm text-slate-600">
+                    <th className="p-3">ID</th>
+                    <th className="p-3">Cliente</th>
+                    <th className="p-3">CURP</th>
+                    <th className="p-3">Monto</th>
+                    <th className="p-3">Documentos</th>
+                    <th className="p-3">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  {solicitudes.map((s) => (
+                    <tr key={s.idSolicitud} className="border-b hover:bg-slate-50">
+                      <td className="p-3 whitespace-nowrap">#{s.idSolicitud}</td>
+                      <td className="p-3 font-medium text-slate-800 whitespace-nowrap">{s.nombreCliente}</td>
+                      <td className="p-3 text-slate-600 text-xs whitespace-nowrap">{s.curp}</td>
+                      <td className="p-3 font-bold text-blue-600 whitespace-nowrap">
+                        ${s.montoSolicitado} <span className="text-xs text-slate-500 font-normal">({s.plazoMeses}m)</span>
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="flex flex-col gap-1 text-xs">
+                          <a 
+                            href={s.ine !== 'Pendiente' ? '#' : undefined} 
+                            onClick={(e) => { e.preventDefault(); alert(`Mostrando archivo:\n${s.ine}`); }}
+                            className="text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            📄 INE
+                          </a>
+                          <a 
+                            href={s.recibo !== 'Pendiente' ? '#' : undefined} 
+                            onClick={(e) => { e.preventDefault(); alert(`Mostrando archivo:\n${s.recibo}`); }}
+                            className="text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            📄 Luz/Agua
+                          </a>
+                        </div>
+                      </td>
+                      <td className="p-3 whitespace-nowrap">
+                        <button 
+                          onClick={() => aprobarSolicitud(s.idSolicitud)}
+                          className="bg-green-600 text-white px-3 sm:px-4 py-1.5 rounded shadow hover:bg-green-700 text-xs sm:text-sm font-semibold transition-colors"
+                        >
+                          Aprobar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
 
       {/* SECCIÓN 2: GESTIÓN DE USUARIOS */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h2 className="text-xl font-semibold mb-4">Gestión de Usuarios del Sistema</h2>
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 overflow-hidden">
+        <h2 className="text-lg sm:text-xl font-semibold mb-4 text-slate-800">Gestión de Usuarios del Sistema</h2>
         
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b bg-slate-50">
-              <th className="p-3">ID</th>
-              <th className="p-3">Nombre</th>
-              <th className="p-3">Correo</th>
-              <th className="p-3">Rol</th>
-              <th className="p-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {usuarios.map((u) => (
-              <tr key={u.idUsuario} className="border-b hover:bg-slate-50">
-                <td className="p-3">#{u.idUsuario}</td>
-                <td className="p-3 font-medium text-slate-800">{u.nombre}</td>
-                <td className="p-3 text-slate-600">{u.email}</td>
-                <td className="p-3">
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                    u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
-                  }`}>
-                    {u.rol}
-                  </span>
-                </td>
-                <td className="p-3">
-                  {u.rol !== 'ADMIN' && (
-                    <button 
-                      onClick={() => eliminarUsuarioAdmin(u.idUsuario, u.nombre)}
-                      className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1 rounded text-xs font-medium transition-colors"
-                    >
-                      Eliminar Cuenta
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+            <table className="min-w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b bg-slate-50 text-xs sm:text-sm text-slate-600">
+                  <th className="p-3">ID</th>
+                  <th className="p-3">Nombre</th>
+                  <th className="p-3">Correo</th>
+                  <th className="p-3">Rol</th>
+                  <th className="p-3">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {usuarios.map((u) => (
+                  <tr key={u.idUsuario} className="border-b hover:bg-slate-50">
+                    <td className="p-3 whitespace-nowrap">#{u.idUsuario}</td>
+                    <td className="p-3 font-medium text-slate-800 whitespace-nowrap">{u.nombre}</td>
+                    <td className="p-3 text-slate-600 whitespace-nowrap">{u.email}</td>
+                    <td className="p-3 whitespace-nowrap">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        u.rol === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                      }`}>
+                        {u.rol}
+                      </span>
+                    </td>
+                    <td className="p-3 whitespace-nowrap">
+                      {u.rol !== 'ADMIN' && (
+                        <button 
+                          onClick={() => eliminarUsuarioAdmin(u.idUsuario, u.nombre)}
+                          className="bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-3 py-1 rounded text-xs font-medium transition-colors"
+                        >
+                          Eliminar Cuenta
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* SECCIÓN 3: SIMULADOR SPEI */}
-      <div className="bg-slate-800 rounded-xl shadow-md p-6 text-white">
-        <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-xl shadow-md p-4 sm:p-6 text-white">
+        <h2 className="text-lg sm:text-xl font-semibold mb-2 flex items-center gap-2">
           🏦 Simulador de Transferencias SPEI
         </h2>
-        <p className="text-sm text-slate-400 mb-4">
+        <p className="text-xs sm:text-sm text-slate-400 mb-4">
           Ingresa la CLABE de un cliente y un monto para simular que el banco nos notificó un pago.
         </p>
-        <form onSubmit={simularPagoSpei} className="flex gap-4 items-end">
+        <form onSubmit={simularPagoSpei} className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-end">
           <div className="flex-1">
-            <label className="block text-sm font-medium mb-1 text-slate-300">CLABE Interbancaria</label>
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-slate-300">CLABE Interbancaria</label>
             <input 
               type="text" 
               value={clabeSpei}
               onChange={(e) => setClabeSpei(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-blue-400"
+              className="w-full px-3 sm:px-4 py-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-blue-400 text-sm"
               placeholder="Ej. 646180111000000006"
               maxLength={18}
               required 
             />
           </div>
-          <div className="w-1/3">
-            <label className="block text-sm font-medium mb-1 text-slate-300">Monto a abonar ($)</label>
+          <div className="w-full sm:w-1/3">
+            <label className="block text-xs sm:text-sm font-medium mb-1 text-slate-300">Monto a abonar ($)</label>
             <input 
               type="number" 
               value={montoSpei}
               onChange={(e) => setMontoSpei(e.target.value)}
-              className="w-full px-4 py-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-blue-400"
+              className="w-full px-3 sm:px-4 py-2 rounded bg-slate-700 border border-slate-600 focus:outline-none focus:border-blue-400 text-sm"
               placeholder="Ej. 1000"
               min="1"
               required 
             />
           </div>
-          <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-semibold transition-colors">
+          <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-semibold transition-colors text-sm whitespace-nowrap">
             Simular Pago
           </button>
         </form>

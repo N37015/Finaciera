@@ -27,11 +27,11 @@ const handleLogin = async (e: React.FormEvent) => {
       sessionStorage.setItem('token', data.token);
       sessionStorage.setItem('usuario', JSON.stringify(data));
 
-      // REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
+    // REDIRECCIÓN INTELIGENTE SEGÚN EL ROL
       if (data.rol === 'ADMIN') {
-        router.push('/dashboard/admin'); // Si es admin, va directo al Backoffice
+        router.replace('/dashboard/admin'); // <-- Cambiado a replace
       } else {
-        router.push('/dashboard'); // Si es cliente, va a su panel normal
+        router.replace('/dashboard'); // <-- Cambiado a replace
       }
       
     } catch (err: any) {

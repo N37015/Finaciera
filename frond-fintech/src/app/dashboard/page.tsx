@@ -12,23 +12,28 @@ export default function DashboardPage() {
   const [transacciones, setTransacciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+ useEffect(() => {
     // CAMBIADO A SESSIONSTORAGE PARA AISLAR PESTAÑAS
     const userData = sessionStorage.getItem('usuario');
     if (!userData) {
-      router.push('/login');
+      router.replace('/login'); // <-- Cambio: usar replace en vez de push
       return;
     }
 
     const userObj = JSON.parse(userData);
-    setUsuario(userObj);
 
-    if (userObj.rol !== 'ADMIN') {
-      cargarPrestamos(userObj.idUsuario);
-      cargarTransacciones(userObj.idUsuario);
-    } else {
-      setLoading(false); 
+    // NUEVO BLOQUEO: Si es ADMIN, no lo dejamos ver este panel de clientes
+    if (userObj.rol === 'ADMIN') {
+      router.replace('/dashboard/admin'); // <-- Lo forzamos a regresar a su Backoffice
+      return;
     }
+
+    // Si es un cliente normal, cargamos sus datos y quitamos el loading
+    setUsuario(userObj);
+    cargarPrestamos(userObj.idUsuario);
+    cargarTransacciones(userObj.idUsuario);
+    setLoading(false); // Asegúrate de detener el loading para el cliente
+    
   }, [router]);
 
   const cargarPrestamos = async (idUsuario: number) => {
@@ -52,13 +57,14 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCerrarSesion = () => {
-    // CAMBIADO A SESSIONSTORAGE
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('usuario');
-    router.push('/login');
+ const handleCerrarSesion = () => {
+    // Limpiamos absolutamente todo (token, usuario, etc.)
+    sessionStorage.clear(); 
+    
+    // FORZAMOS LA RECARGA. Esto mata la caché de Next.js y evita que la flecha 'atrás' funcione
+    window.location.replace('/login'); 
   };
-
+  
   const handlePago = async (idPrestamo: number, saldoPendiente: number) => {
     const cantidadStr = window.prompt(`Tu saldo pendiente es de $${saldoPendiente}\n¿Cuánto deseas abonar a este préstamo?`);
     
@@ -80,7 +86,7 @@ export default function DashboardPage() {
       setLoading(true);
       await fetchAPI(`/prestamos/${idPrestamo}/pagar`, {
         method: 'POST',
-        body: JSON.stringify({ montoAbono }),
+        body: JSON.stringify({ montoAbono: montoAbono }), // <-- La llave y el valor deben ser iguales
       });
       
       alert("¡Pago procesado con éxito!");

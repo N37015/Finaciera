@@ -487,11 +487,11 @@ app.MapPost("/api/prestamos/{idPrestamo}/pagar", async (int idPrestamo, PagoDto 
         cmdVerificar.Parameters.AddWithValue("id", idPrestamo);
         
         var resultado = await cmdVerificar.ExecuteScalarAsync();
-        if (resultado == null) return Results.NotFound(new { Mensaje = "Préstamo no encontrado" });
+        if (resultado == null) return Results.NotFound(new { mensaje = "Préstamo no encontrado" });
         
         decimal saldoActual = Convert.ToDecimal(resultado);
         if (saldoActual < pago.MontoAbono) 
-            return Results.BadRequest(new { Mensaje = "El monto a pagar es mayor al saldo pendiente" });
+            return Results.BadRequest(new { mensaje = "El monto a pagar es mayor al saldo pendiente" });
 
         string sqlTransaccion = @"INSERT INTO TRANSACCION 
        (id_prestamo, tipo_transaccion, monto, estado, fecha_transaccion) 
@@ -511,7 +511,7 @@ app.MapPost("/api/prestamos/{idPrestamo}/pagar", async (int idPrestamo, PagoDto 
 
         await tx.CommitAsync();
         
-        return Results.Ok(new { Mensaje = "Pago registrado con éxito", SaldoRestante = saldoActual - pago.MontoAbono });
+        return Results.Ok(new { mensaje = "Pago registrado con éxito", saldoRestante = saldoActual - pago.MontoAbono });
     }
     catch (Exception ex)
     {
@@ -551,6 +551,51 @@ app.MapGet("/api/admin/solicitudes", async () =>
             });
         }
         return Results.Ok(solicitudes);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(ex.Message);
+    }
+}).RequireAuthorization();
+
+app.MapGet("/api/admin/prestamos", async () =>
+{
+    using var conn = await dataSource.OpenConnectionAsync();
+    try
+    {
+        var cartera = new List<object>();
+        // Unimos la tabla PRESTAMO con usuario y SOLICITUD_PRESTAMO para traer todo
+        string sql = @"
+            SELECT p.id_prestamo, u.nombre, u.email, p.monto_aprobado, p.saldo_pendiente, 
+                   s.ine, s.recibo_luz_agua, s.curp
+            FROM PRESTAMO p
+            JOIN usuario u ON p.id_usuario = u.id_usuario
+            JOIN SOLICITUD_PRESTAMO s ON p.id_solicitud = s.id_solicitud
+            ORDER BY p.id_prestamo DESC;";
+            
+        using var cmd = new NpgsqlCommand(sql, conn);
+        using var reader = await cmd.ExecuteReaderAsync();
+        
+        while (await reader.ReadAsync())
+        {
+            decimal saldo = reader.GetDecimal(4);
+            // Si el saldo es 0 o menor, el préstamo está pagado, de lo contrario está activo
+            string estado = saldo <= 0 ? "PAGADO COMPLETAMENTE" : "ACTIVO";
+            
+            cartera.Add(new
+            {
+                IdPrestamo = reader.GetInt32(0),
+                Cliente = reader.GetString(1),
+                Email = reader.GetString(2),
+                MontoAprobado = reader.GetDecimal(3),
+                SaldoPendiente = saldo,
+                Estado = estado,
+                INE = reader.IsDBNull(5) ? "Pendiente" : reader.GetString(5),
+                Recibo = reader.IsDBNull(6) ? "Pendiente" : reader.GetString(6),
+                CURP = reader.IsDBNull(7) ? "" : reader.GetString(7)
+            });
+        }
+        return Results.Ok(cartera);
     }
     catch (Exception ex)
     {

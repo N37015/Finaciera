@@ -12,28 +12,33 @@ export default function DashboardPage() {
   const [transacciones, setTransacciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
- useEffect(() => {
-    // CAMBIADO A SESSIONSTORAGE PARA AISLAR PESTAÑAS
+useEffect(() => {
     const userData = sessionStorage.getItem('usuario');
     if (!userData) {
-      router.replace('/login'); // <-- Cambio: usar replace en vez de push
+      router.replace('/login');
       return;
     }
 
     const userObj = JSON.parse(userData);
-
-    // NUEVO BLOQUEO: Si es ADMIN, no lo dejamos ver este panel de clientes
     if (userObj.rol === 'ADMIN') {
-      router.replace('/dashboard/admin'); // <-- Lo forzamos a regresar a su Backoffice
+      router.replace('/dashboard/admin');
       return;
     }
 
-    // Si es un cliente normal, cargamos sus datos y quitamos el loading
+    // 1. Carga inicial de los datos del cliente
     setUsuario(userObj);
     cargarPrestamos(userObj.idUsuario);
     cargarTransacciones(userObj.idUsuario);
-    setLoading(false); // Asegúrate de detener el loading para el cliente
+    setLoading(false); 
     
+    // 2. Temporizador para recargar los préstamos y transacciones (cada 15 segundos)
+    const intervalo = setInterval(() => {
+      cargarPrestamos(userObj.idUsuario);
+      cargarTransacciones(userObj.idUsuario);
+    }, 15000);
+
+    // 3. Limpiar el temporizador si el cliente cierra sesión o cambia de página
+    return () => clearInterval(intervalo);
   }, [router]);
 
   const cargarPrestamos = async (idUsuario: number) => {

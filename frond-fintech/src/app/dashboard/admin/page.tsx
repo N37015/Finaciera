@@ -33,7 +33,17 @@ export default function AdminDashboardPage() {
       return;
     }
 
+    // 1. Carga inicial inmediata
     cargarDatosAdmin();
+
+    // 2. NUEVO: Configurar un temporizador para recargar datos en silencio
+    // 15000 milisegundos = 15 segundos. 
+    const intervalo = setInterval(() => {
+      cargarDatosAdmin();
+    }, 15000); 
+
+    // 3. Limpieza: Detener el temporizador si el admin cierra la página
+    return () => clearInterval(intervalo);
   }, [router]);
 
   const cargarDatosAdmin = async () => {

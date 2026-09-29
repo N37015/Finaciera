@@ -564,13 +564,14 @@ app.MapGet("/api/admin/prestamos", async () =>
     try
     {
         var cartera = new List<object>();
-        // Unimos la tabla PRESTAMO con usuario y SOLICITUD_PRESTAMO para traer todo
+        
+        // CAMBIO CLAVE: Usamos LEFT JOIN en SOLICITUD_PRESTAMO para no ocultar préstamos huérfanos
         string sql = @"
             SELECT p.id_prestamo, u.nombre, u.email, p.monto_aprobado, p.saldo_pendiente, 
                    s.ine, s.recibo_luz_agua, s.curp
             FROM PRESTAMO p
             JOIN usuario u ON p.id_usuario = u.id_usuario
-            JOIN SOLICITUD_PRESTAMO s ON p.id_solicitud = s.id_solicitud
+            LEFT JOIN SOLICITUD_PRESTAMO s ON p.id_solicitud = s.id_solicitud
             ORDER BY p.id_prestamo DESC;";
             
         using var cmd = new NpgsqlCommand(sql, conn);
@@ -579,7 +580,6 @@ app.MapGet("/api/admin/prestamos", async () =>
         while (await reader.ReadAsync())
         {
             decimal saldo = reader.GetDecimal(4);
-            // Si el saldo es 0 o menor, el préstamo está pagado, de lo contrario está activo
             string estado = saldo <= 0 ? "PAGADO COMPLETAMENTE" : "ACTIVO";
             
             cartera.Add(new
@@ -590,9 +590,10 @@ app.MapGet("/api/admin/prestamos", async () =>
                 MontoAprobado = reader.GetDecimal(3),
                 SaldoPendiente = saldo,
                 Estado = estado,
-                INE = reader.IsDBNull(5) ? "Pendiente" : reader.GetString(5),
-                Recibo = reader.IsDBNull(6) ? "Pendiente" : reader.GetString(6),
-                CURP = reader.IsDBNull(7) ? "" : reader.GetString(7)
+                // Si la solicitud no existe por ser un préstamo de prueba, se envía como "No disponible"
+                INE = reader.IsDBNull(5) ? "No disponible" : reader.GetString(5),
+                Recibo = reader.IsDBNull(6) ? "No disponible" : reader.GetString(6),
+                CURP = reader.IsDBNull(7) ? "No disponible" : reader.GetString(7)
             });
         }
         return Results.Ok(cartera);

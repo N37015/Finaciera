@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchAPI } from '@/lib/api';
+import { useFeedback } from '@/components/feedback';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  
+  const { notificar, confirmar, ui } = useFeedback();
+
   // ESTADOS DE DATOS
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [prestamosClientes, setPrestamosClientes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // ESTADOS DEL SIMULADOR
   const [clabeSpei, setClabeSpei] = useState('');
   const [montoSpei, setMontoSpei] = useState('');
@@ -36,13 +38,12 @@ export default function AdminDashboardPage() {
     // 1. Carga inicial inmediata
     cargarDatosAdmin();
 
-    // 2. NUEVO: Configurar un temporizador para recargar datos en silencio
-    // 15000 milisegundos = 15 segundos. 
+    // 2. Recargar datos en silencio cada 15 segundos
     const intervalo = setInterval(() => {
       cargarDatosAdmin();
-    }, 15000); 
+    }, 15000);
 
-    // 3. Limpieza: Detener el temporizador si el admin cierra la página
+    // 3. Limpieza: detener el temporizador si el admin cierra la página
     return () => clearInterval(intervalo);
   }, [router]);
 
@@ -64,27 +65,39 @@ export default function AdminDashboardPage() {
   };
 
   const aprobarSolicitud = async (id: number) => {
-    if (!confirm('¿Estás seguro de aprobar este préstamo y desembolsar los fondos?')) return;
-    
+    const ok = await confirmar({
+      titulo: 'Aprobar crédito',
+      mensaje: '¿Aprobar este préstamo y desembolsar los fondos?',
+      textoConfirmar: 'Aprobar y desembolsar',
+    });
+    if (!ok) return;
+
     try {
       const res = await fetchAPI(`/admin/solicitudes/${id}/aprobar`, { method: 'POST' });
-      alert(`¡Préstamo aprobado!\nEl cliente debe pagar a la CLABE: ${res.clabe}`);
+      // duracion = 0 -> el toast se queda hasta que el admin lo cierre (para copiar la CLABE)
+      notificar('ok', 'Préstamo aprobado. El cliente debe pagar a la CLABE:', res.clabe, 0);
       cargarDatosAdmin();
       setActiveTab('cartera'); // Te lleva a la cartera automáticamente al aprobar
     } catch (error: any) {
-      alert(error.message);
+      notificar('error', 'No se pudo aprobar', error.message);
     }
   };
 
   const eliminarUsuarioAdmin = async (idUsuario: number, nombre: string) => {
-    if (!confirm(`⚠️ ¿Estás seguro de eliminar al cliente "${nombre}"?\nSe borrarán sus préstamos y cuentas.`)) return;
+    const ok = await confirmar({
+      titulo: 'Eliminar cliente',
+      mensaje: `¿Eliminar al cliente "${nombre}"?\nSe borrarán sus préstamos y cuentas.`,
+      textoConfirmar: 'Eliminar',
+      peligro: true,
+    });
+    if (!ok) return;
 
     try {
       await fetchAPI(`/usuarios/${idUsuario}`, { method: 'DELETE' });
-      alert(`Cliente ${nombre} eliminado correctamente.`);
+      notificar('ok', `Cliente ${nombre} eliminado correctamente`);
       cargarDatosAdmin();
     } catch (error: any) {
-      alert(`Error al eliminar usuario: ${error.message}`);
+      notificar('error', 'Error al eliminar usuario', error.message);
     }
   };
 
@@ -98,23 +111,22 @@ export default function AdminDashboardPage() {
           monto: parseFloat(montoSpei)
         })
       });
-      alert(`✅ ${res.mensaje}\nSaldo restante: $${res.saldoRestante}`);
+      notificar('ok', res.mensaje, `Saldo restante: $${res.saldoRestante}`);
       setClabeSpei('');
       setMontoSpei('');
       cargarDatosAdmin();
       setActiveTab('cartera'); // Te lleva a la cartera para ver el saldo actualizado
     } catch (error: any) {
-      alert(`❌ Error: ${error.message}`);
+      notificar('error', 'Error en la transferencia', error.message);
     }
   };
 
   // FILTRAR SOLO CLIENTES (Ocultar Admins de la tabla de usuarios)
   const clientesSolo = usuarios.filter(u => u.rol !== 'ADMIN');
 
-  // NUEVO: FILTRAR LA CARTERA PARA OCULTAR PRÉSTAMOS DEL ADMIN
-  // Filtramos cualquier préstamo cuyo correo o nombre contenga "admin"
-  const carteraReal = prestamosClientes.filter(p => 
-    !p.email.toLowerCase().includes('admin') && 
+  // FILTRAR LA CARTERA PARA OCULTAR PRÉSTAMOS DEL ADMIN
+  const carteraReal = prestamosClientes.filter(p =>
+    !p.email.toLowerCase().includes('admin') &&
     !p.cliente.toLowerCase().includes('admin')
   );
 
@@ -136,7 +148,7 @@ export default function AdminDashboardPage() {
               </h1>
               <p className="mt-1 text-sm text-slate-500">Panel de control y administración financiera.</p>
             </div>
-            
+
             {/* NOTIFICACIÓN VISUAL DE SOLICITUDES PENDIENTES */}
             {solicitudes.length > 0 && (
               <div className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full animate-bounce">
@@ -153,7 +165,7 @@ export default function AdminDashboardPage() {
                 activeTab === 'solicitudes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
-              📝 Solicitudes Pendientes
+               Solicitudes Pendientes
             </button>
             <button
               onClick={() => setActiveTab('cartera')}
@@ -161,7 +173,7 @@ export default function AdminDashboardPage() {
                 activeTab === 'cartera' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
-              👥 Cartera de Préstamos
+               Cartera de Préstamos
             </button>
             <button
               onClick={() => setActiveTab('usuarios')}
@@ -169,7 +181,7 @@ export default function AdminDashboardPage() {
                 activeTab === 'usuarios' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
-              ⚙️ Cuentas de Clientes
+               Cuentas de Clientes
             </button>
             <button
               onClick={() => setActiveTab('spei')}
@@ -177,14 +189,14 @@ export default function AdminDashboardPage() {
                 activeTab === 'spei' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
               }`}
             >
-              🏦 Simulador SPEI
+               Simulador SPEI
             </button>
           </nav>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-        
+
         {/* =========================================
             PESTAÑA 1: SOLICITUDES PENDIENTES
         ============================================= */}
@@ -193,7 +205,7 @@ export default function AdminDashboardPage() {
             <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
               <h2 className="text-lg font-semibold text-slate-800">Por Revisar</h2>
             </div>
-            
+
             <div className="p-6">
               {solicitudes.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
@@ -231,7 +243,7 @@ export default function AdminDashboardPage() {
                             </div>
                           </td>
                           <td className="px-4 py-4 text-right">
-                            <button 
+                            <button
                               onClick={() => aprobarSolicitud(s.idSolicitud)}
                               className="px-5 py-2 bg-green-600 rounded-lg font-bold text-xs text-white uppercase hover:bg-green-700 transition-colors shadow-md"
                             >
@@ -256,11 +268,11 @@ export default function AdminDashboardPage() {
             <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
               <h2 className="text-lg font-semibold text-slate-800">Estado de Cuenta Global</h2>
             </div>
-            
+
             <div className="p-6">
-              {prestamosClientes.length === 0 ? (
+              {carteraReal.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                  <span className="text-5xl">📁</span>
+                  <span className="text-5xl"></span>
                   <p className="mt-4 text-sm text-slate-500">Aún no hay préstamos activos ni históricos.</p>
                 </div>
               ) : (
@@ -274,7 +286,6 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {/* CAMBIAR prestamosClientes POR carteraReal AQUÍ */}
                       {carteraReal.map((p) => {
                         const montoPagado = p.montoAprobado - p.saldoPendiente;
                         const porcentajePagado = Math.min(100, Math.max(0, (montoPagado / p.montoAprobado) * 100));
@@ -288,8 +299,8 @@ export default function AdminDashboardPage() {
                             </td>
                             <td className="px-4 py-4">
                               <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border ${
-                                p.estado === 'ACTIVO' 
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                p.estado === 'ACTIVO'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               }`}>
                                 {p.estado}
@@ -349,7 +360,7 @@ export default function AdminDashboardPage() {
                         <td className="px-6 py-4 text-sm font-bold text-slate-800">{u.nombre}</td>
                         <td className="px-6 py-4 text-sm text-slate-500">{u.email}</td>
                         <td className="px-6 py-4 text-right">
-                          <button 
+                          <button
                             onClick={() => eliminarUsuarioAdmin(u.idUsuario, u.nombre)}
                             className="text-xs text-red-600 hover:text-white hover:bg-red-600 border border-red-600 px-3 py-1.5 rounded transition-colors font-semibold"
                           >
@@ -371,43 +382,43 @@ export default function AdminDashboardPage() {
         {activeTab === 'spei' && (
           <section className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 overflow-hidden text-white max-w-3xl mx-auto animate-fade-in">
             <div className="px-8 py-6 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
-              <span className="text-3xl">🏦</span>
+              <span className="text-3xl"></span>
               <div>
                 <h2 className="text-xl font-bold text-white">Simulador de Webhook SPEI</h2>
                 <p className="text-sm text-slate-400 mt-1">Simula que el Banco de México ha enviado una transferencia al sistema.</p>
               </div>
             </div>
-            
+
             <div className="p-8">
               <form onSubmit={simularPagoSpei} className="space-y-6">
                 <div>
                   <label className="block text-xs font-bold mb-2 text-slate-300 uppercase tracking-widest">CLABE Interbancaria (18 dígitos)</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={clabeSpei}
                     onChange={(e) => setClabeSpei(e.target.value)}
                     className="w-full px-5 py-4 rounded-xl bg-slate-800 border-2 border-slate-700 text-white text-lg font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
                     placeholder="Ej. 646180111000000006"
                     maxLength={18}
-                    required 
+                    required
                   />
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold mb-2 text-slate-300 uppercase tracking-widest">Monto del Abono ($)</label>
-                  <input 
-                    type="number" 
+                  <input
+                    type="number"
                     value={montoSpei}
                     onChange={(e) => setMontoSpei(e.target.value)}
                     className="w-full px-5 py-4 rounded-xl bg-slate-800 border-2 border-slate-700 text-white text-lg font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
                     placeholder="1000.00"
                     min="1"
-                    required 
+                    required
                   />
                 </div>
-                
-                <button 
-                  type="submit" 
+
+                <button
+                  type="submit"
                   className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)]"
                 >
                   Ejecutar Transferencia Simulada
@@ -418,6 +429,9 @@ export default function AdminDashboardPage() {
         )}
 
       </main>
+
+      {/* Toasts y modal de confirmación */}
+      {ui}
 
       {/* Estilo para transición suave */}
       <style dangerouslySetInnerHTML={{__html: `

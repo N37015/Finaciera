@@ -1,9 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchAPI } from '@/lib/api';
+
+type Aviso = { tipo: 'exito' | 'error'; texto: string } | null;
+type PagoActivo = { idPrestamo: number; saldoPendiente: number } | null;
+
+const formatoMoneda = (n: number) =>
+  n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -12,7 +18,17 @@ export default function DashboardPage() {
   const [transacciones, setTransacciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-useEffect(() => {
+  // Reemplazo de alert() -> aviso (toast)
+  const [aviso, setAviso] = useState<Aviso>(null);
+
+  // Reemplazo de prompt() -> modal de pago
+  const [pagoActivo, setPagoActivo] = useState<PagoActivo>(null);
+  const [montoInput, setMontoInput] = useState('');
+  const [errorModal, setErrorModal] = useState('');
+  const [procesando, setProcesando] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
     const userData = sessionStorage.getItem('usuario');
     if (!userData) {
       router.replace('/login');
@@ -25,28 +41,42 @@ useEffect(() => {
       return;
     }
 
-    // 1. Carga inicial de los datos del cliente
     setUsuario(userObj);
     cargarPrestamos(userObj.idUsuario);
     cargarTransacciones(userObj.idUsuario);
-    setLoading(false); 
-    
-    // 2. Temporizador para recargar los préstamos y transacciones (cada 15 segundos)
+
     const intervalo = setInterval(() => {
       cargarPrestamos(userObj.idUsuario);
       cargarTransacciones(userObj.idUsuario);
     }, 15000);
 
-    // 3. Limpiar el temporizador si el cliente cierra sesión o cambia de página
     return () => clearInterval(intervalo);
   }, [router]);
+
+  // El aviso se oculta solo a los 4 segundos
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 4000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+
+  // Enfocar el campo al abrir el modal y cerrar con Escape
+  useEffect(() => {
+    if (!pagoActivo) return;
+    inputRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !procesando) cerrarModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pagoActivo, procesando]);
 
   const cargarPrestamos = async (idUsuario: number) => {
     try {
       const data = await fetchAPI(`/prestamos/usuario/${idUsuario}`);
       setPrestamos(data || []);
     } catch (error) {
-      console.error("Error al cargar préstamos:", error);
+      console.error('Error al cargar préstamos:', error);
     } finally {
       setLoading(false);
     }
@@ -57,51 +87,57 @@ useEffect(() => {
       const data = await fetchAPI(`/transacciones/usuario/${idUsuario}`);
       setTransacciones(data || []);
     } catch (error) {
-      console.error("Error al cargar transacciones:", error);
+      console.error('Error al cargar transacciones:', error);
       setTransacciones([]);
     }
   };
 
- const handleCerrarSesion = () => {
-    // Limpiamos absolutamente todo (token, usuario, etc.)
-    sessionStorage.clear(); 
-    
-    // FORZAMOS LA RECARGA. Esto mata la caché de Next.js y evita que la flecha 'atrás' funcione
-    window.location.replace('/login'); 
+  const handleCerrarSesion = () => {
+    sessionStorage.clear();
+    window.location.replace('/login');
   };
-  
-  const handlePago = async (idPrestamo: number, saldoPendiente: number) => {
-    const cantidadStr = window.prompt(`Tu saldo pendiente es de $${saldoPendiente}\n¿Cuánto deseas abonar a este préstamo?`);
-    
-    if (!cantidadStr) return;
 
-    const montoAbono = parseFloat(cantidadStr);
+  const abrirModal = (idPrestamo: number, saldoPendiente: number) => {
+    setMontoInput('');
+    setErrorModal('');
+    setPagoActivo({ idPrestamo, saldoPendiente });
+  };
+
+  const cerrarModal = () => {
+    setPagoActivo(null);
+    setMontoInput('');
+    setErrorModal('');
+  };
+
+  const confirmarPago = async () => {
+    if (!pagoActivo) return;
+
+    const montoAbono = parseFloat(montoInput);
 
     if (isNaN(montoAbono) || montoAbono <= 0) {
-      alert("Por favor, ingresa una cantidad válida mayor a 0.");
+      setErrorModal('Ingresa una cantidad mayor a $0.');
       return;
     }
-
-    if (montoAbono > saldoPendiente) {
-      alert("No puedes abonar más del saldo pendiente.");
+    if (montoAbono > pagoActivo.saldoPendiente) {
+      setErrorModal(`El abono no puede superar tu saldo de ${formatoMoneda(pagoActivo.saldoPendiente)}.`);
       return;
     }
 
     try {
-      setLoading(true);
-      await fetchAPI(`/prestamos/${idPrestamo}/pagar`, {
+      setProcesando(true);
+      await fetchAPI(`/prestamos/${pagoActivo.idPrestamo}/pagar`, {
         method: 'POST',
-        body: JSON.stringify({ montoAbono: montoAbono }), // <-- La llave y el valor deben ser iguales
+        body: JSON.stringify({ montoAbono }),
       });
-      
-      alert("¡Pago procesado con éxito!");
-      
+
+      cerrarModal();
+      setAviso({ tipo: 'exito', texto: 'Pago procesado con éxito.' });
       cargarPrestamos(usuario.idUsuario);
       cargarTransacciones(usuario.idUsuario);
     } catch (error: any) {
-      alert(error.message || "Error al procesar el pago");
+      setErrorModal(error.message || 'No se pudo procesar el pago. Intenta de nuevo.');
     } finally {
-      setLoading(false);
+      setProcesando(false);
     }
   };
 
@@ -111,11 +147,113 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* AVISO (reemplaza alert) */}
+      {aviso && (
+        <div
+          role="status"
+          className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg text-sm font-medium text-white ${
+            aviso.tipo === 'exito' ? 'bg-emerald-600' : 'bg-red-600'
+          }`}
+        >
+          <span>{aviso.texto}</span>
+          <button
+            onClick={() => setAviso(null)}
+            aria-label="Cerrar aviso"
+            className="text-white/80 hover:text-white text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* MODAL DE PAGO (reemplaza prompt) */}
+      {pagoActivo && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4"
+          onClick={() => !procesando && cerrarModal()}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-pago"
+            className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="titulo-pago" className="text-lg font-semibold text-slate-800">
+              Abonar al préstamo #{pagoActivo.idPrestamo}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Saldo pendiente:{' '}
+              <span className="font-semibold text-slate-800">
+                {formatoMoneda(pagoActivo.saldoPendiente)}
+              </span>
+            </p>
+
+            <label htmlFor="monto" className="mt-5 block text-sm font-medium text-slate-700">
+              Cantidad a abonar
+            </label>
+            <div className="relative mt-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+              <input
+                id="monto"
+                ref={inputRef}
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={montoInput}
+                onChange={(e) => {
+                  setMontoInput(e.target.value);
+                  setErrorModal('');
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && confirmarPago()}
+                placeholder="0.00"
+                className={`w-full rounded-lg border py-2 pl-7 pr-3 text-slate-800 outline-none focus:ring-2 ${
+                  errorModal
+                    ? 'border-red-400 focus:ring-red-200'
+                    : 'border-slate-300 focus:ring-blue-200 focus:border-blue-500'
+                }`}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMontoInput(String(pagoActivo.saldoPendiente));
+                setErrorModal('');
+              }}
+              className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700"
+            >
+              Liquidar saldo completo
+            </button>
+
+            {errorModal && <p className="mt-3 text-sm text-red-600">{errorModal}</p>}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={cerrarModal}
+                disabled={procesando}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarPago}
+                disabled={procesando}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {procesando ? 'Procesando...' : 'Confirmar pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="bg-slate-800 text-white p-4 shadow-md flex justify-between items-center">
         <h1 className="text-xl font-bold">NovaFintech</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm">Hola, {usuario?.usuario}</span>
-          <button 
+          <button
             onClick={handleCerrarSesion}
             className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition-colors"
           >
@@ -133,7 +271,7 @@ useEffect(() => {
         <div className="bg-white rounded-xl shadow p-6 mb-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-semibold text-slate-800">Mis Préstamos Activos</h3>
-            <Link 
+            <Link
               href="/dashboard/solicitar"
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
             >
@@ -152,13 +290,17 @@ useEffect(() => {
                 <div key={i} className="border border-slate-200 rounded-lg p-5">
                   <div className="flex justify-between mb-2">
                     <span className="text-slate-500 text-sm">Préstamo #{prestamo.idPrestamo}</span>
-                    <span className="text-blue-600 font-bold text-lg">${prestamo.saldoPendiente.toLocaleString()}</span>
+                    <span className="text-blue-600 font-bold text-lg">
+                      ${prestamo.saldoPendiente.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm mb-4">
-                    <span className="text-slate-600">Aprobado: ${prestamo.montoAprobado.toLocaleString()}</span>
+                    <span className="text-slate-600">
+                      Aprobado: ${prestamo.montoAprobado.toLocaleString()}
+                    </span>
                     <span className="text-slate-600">Tasa: {prestamo.tasaInteres}%</span>
                   </div>
-                  
+
                   <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100 text-center">
                     <p className="text-xs text-blue-600 uppercase font-semibold tracking-wider mb-1">
                       CLABE para abonar por SPEI
@@ -168,8 +310,8 @@ useEffect(() => {
                     </p>
                   </div>
 
-                  <button 
-                    onClick={() => handlePago(prestamo.idPrestamo, prestamo.saldoPendiente)}
+                  <button
+                    onClick={() => abrirModal(prestamo.idPrestamo, prestamo.saldoPendiente)}
                     className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded text-sm font-medium transition-colors border border-slate-300"
                   >
                     Realizar Pago Manual
@@ -204,16 +346,22 @@ useEffect(() => {
                     <tr key={i} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                       <td className="px-6 py-4">{tx.fecha}</td>
                       <td className="px-6 py-4 font-medium">
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          tx.tipoTransaccion.includes('PAGO') ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-                        }`}>
+                        <span
+                          className={`px-2 py-1 rounded text-xs ${
+                            tx.tipoTransaccion.includes('PAGO')
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
                           {tx.tipoTransaccion}
                         </span>
                       </td>
                       <td className="px-6 py-4">#{tx.idTransaccion}</td>
-                      <td className={`px-6 py-4 font-bold ${
-                        tx.tipoTransaccion.includes('PAGO') ? 'text-green-600' : 'text-slate-800'
-                      }`}>
+                      <td
+                        className={`px-6 py-4 font-bold ${
+                          tx.tipoTransaccion.includes('PAGO') ? 'text-green-600' : 'text-slate-800'
+                        }`}
+                      >
                         {tx.tipoTransaccion.includes('PAGO') ? '-' : '+'}${tx.monto.toLocaleString()}
                       </td>
                       <td className="px-6 py-4">

@@ -7,6 +7,33 @@ import { fetchAPI } from '@/lib/api';
 
 const CURP_REGEX = /^[A-Z]{4}\d{6}[HM][A-Z]{2}[B-DF-HJ-NP-TV-Z]{3}[A-Z0-9]\d$/;
 
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0F2B52] focus:ring-2 focus:ring-[#0F2B52]/20 disabled:bg-slate-100 disabled:text-slate-500';
+
+const fileClass =
+  'w-full cursor-pointer text-sm text-slate-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#0F2B52] file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[#1B4079] disabled:cursor-not-allowed';
+
+function ArrowLeftIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M19 12H5M11 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+// Muestra solo el nombre del archivo a partir de la ruta guardada
+const nombreArchivo = (ruta: string) =>
+  ruta ? decodeURIComponent(ruta.split('/').pop() ?? '') : '';
+
 export default function SolicitarPrestamoPage() {
   const router = useRouter();
   const [usuario, setUsuario] = useState<any>(null);
@@ -80,129 +107,202 @@ export default function SolicitarPrestamoPage() {
 
       setExito(true);
     } catch (err: any) {
-      setError(err.message || 'Error al procesar la solicitud');
+      setError(err.message || 'No pudimos procesar tu solicitud. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
   };
 
+  const bloqueado = loading || exito;
+
   return (
-    <div className="min-h-screen bg-slate-50 py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-md p-6 sm:p-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Solicitar Préstamo</h2>
-          <Link href="/dashboard" className="text-xs sm:text-sm text-slate-500 hover:text-slate-800 transition-colors">
-            ← Volver al Panel
+    <div className="flex min-h-screen flex-col bg-[#F2F6FB]">
+      {/* Barra superior */}
+      <header className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
+          <span className="flex items-center gap-2 text-lg font-semibold tracking-tight text-slate-900">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0F2B52] text-sm font-bold text-white">
+              N
+            </span>
+            <span className="hidden sm:inline">NovaFintech</span>
+          </span>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+          >
+            <ArrowLeftIcon />
+            <span>
+              Volver<span className="hidden sm:inline"> al panel</span>
+            </span>
           </Link>
         </div>
+      </header>
 
-        {error && (
-          <div role="alert" className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-xs sm:text-sm">
-            {error}
-          </div>
-        )}
+      <main className="flex flex-1 justify-center px-4 py-8 sm:px-6 sm:py-12">
+        <div className="w-full max-w-2xl rounded-lg border border-slate-200 bg-white p-6 sm:p-8 self-start">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Solicitar préstamo
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Elige el monto y el plazo, y comparte tus datos y documentos para que
+            revisemos tu solicitud.
+          </p>
 
-        {exito && (
-          <div role="status" className="bg-green-50 text-green-700 p-3 rounded-lg mb-6 text-xs sm:text-sm">
-            <p className="font-semibold">¡Solicitud enviada a revisión!</p>
-            <p className="mt-1">El equipo de Backoffice evaluará tus documentos. Te llevamos a tu panel...</p>
-          </div>
-        )}
+          {error && (
+            <div
+              role="alert"
+              className="mt-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+            >
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Se adapta de 2 columnas en pantallas medianas/grandes a 1 columna en celulares */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {exito && (
+            <div
+              role="status"
+              className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800"
+            >
+              <p className="font-semibold">Solicitud enviada</p>
+              <p className="mt-1">
+                Revisaremos tu información y verás el resultado en tu panel. Te
+                llevamos allá en un momento.
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="monto" className="mb-1 block text-sm font-medium text-slate-700">
+                  Monto solicitado
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                  <input
+                    id="monto"
+                    type="number"
+                    inputMode="numeric"
+                    name="monto"
+                    min="500"
+                    step="100"
+                    value={formData.monto}
+                    onChange={handleChange}
+                    className={`${inputClass} pl-8`}
+                    placeholder="10000"
+                    required
+                    disabled={bloqueado}
+                  />
+                </div>
+                <p className="mt-1 text-xs text-slate-500">Desde $500, en múltiplos de $100.</p>
+              </div>
+
+              <div>
+                <label htmlFor="meses" className="mb-1 block text-sm font-medium text-slate-700">
+                  Plazo
+                </label>
+                <select
+                  id="meses"
+                  name="meses"
+                  value={formData.meses}
+                  onChange={handleChange}
+                  className={inputClass}
+                  disabled={bloqueado}
+                >
+                  <option value="6">6 meses</option>
+                  <option value="12">12 meses</option>
+                  <option value="24">24 meses</option>
+                  <option value="36">36 meses</option>
+                </select>
+              </div>
+            </div>
+
             <div>
-              <label htmlFor="monto" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Monto Solicitado ($)</label>
+              <label htmlFor="curp" className="mb-1 block text-sm font-medium text-slate-700">
+                CURP
+              </label>
               <input
-                id="monto"
-                type="number"
-                name="monto"
-                min="500"
-                step="100"
-                value={formData.monto}
+                id="curp"
+                type="text"
+                name="curp"
+                value={formData.curp}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="Ej. 10000"
+                className={`${inputClass} uppercase`}
+                placeholder="18 caracteres"
+                maxLength={18}
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
                 required
-                disabled={loading || exito}
+                disabled={bloqueado}
               />
             </div>
-            <div>
-              <label htmlFor="meses" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">Plazo (Meses)</label>
-              <select
-                id="meses"
-                name="meses"
-                value={formData.meses}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
-                disabled={loading || exito}
+
+            <fieldset className="space-y-5 rounded-lg border border-slate-200 bg-[#F2F6FB] p-4 sm:p-5">
+              <legend className="px-1 text-sm font-semibold text-slate-800">Tus documentos</legend>
+              <p className="text-xs text-slate-600">
+                Formatos aceptados: PDF, JPG o PNG. Asegúrate de que se lea bien.
+              </p>
+
+              <div>
+                <label htmlFor="ine" className="mb-2 block text-sm font-medium text-slate-700">
+                  Identificación oficial (INE)
+                </label>
+                <input
+                  id="ine"
+                  type="file"
+                  name="ine"
+                  accept="image/png, image/jpeg, application/pdf"
+                  onChange={handleFileChange}
+                  className={fileClass}
+                  disabled={bloqueado}
+                />
+                {formData.ine && (
+                  <p className="mt-2 break-all text-xs text-slate-600">
+                    Archivo seleccionado: {nombreArchivo(formData.ine)}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="reciboLuzAgua" className="mb-2 block text-sm font-medium text-slate-700">
+                  Comprobante de domicilio (luz o agua){' '}
+                  <span className="font-normal text-slate-500">(opcional)</span>
+                </label>
+                <input
+                  id="reciboLuzAgua"
+                  type="file"
+                  name="reciboLuzAgua"
+                  accept="image/png, image/jpeg, application/pdf"
+                  onChange={handleFileChange}
+                  className={fileClass}
+                  disabled={bloqueado}
+                />
+                {formData.reciboLuzAgua && (
+                  <p className="mt-2 break-all text-xs text-slate-600">
+                    Archivo seleccionado: {nombreArchivo(formData.reciboLuzAgua)}
+                  </p>
+                )}
+              </div>
+            </fieldset>
+
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Link
+                href="/dashboard"
+                className="flex h-12 items-center justify-center rounded-lg border border-slate-300 bg-white px-6 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                <option value="6">6 Meses</option>
-                <option value="12">12 Meses</option>
-                <option value="24">24 Meses</option>
-                <option value="36">36 Meses</option>
-              </select>
+                Cancelar
+              </Link>
+              <button
+                type="submit"
+                disabled={bloqueado}
+                className="h-12 rounded-lg bg-[#0F2B52] px-6 font-semibold text-white hover:bg-[#1B4079] disabled:bg-slate-400"
+              >
+                {loading ? 'Enviando...' : exito ? 'Solicitud enviada' : 'Enviar solicitud'}
+              </button>
             </div>
-          </div>
-
-          <div>
-            <label htmlFor="curp" className="block text-xs sm:text-sm font-medium text-slate-700 mb-1">CURP</label>
-            <input
-              id="curp"
-              type="text"
-              name="curp"
-              value={formData.curp}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 uppercase text-sm"
-              placeholder="Ingresa tu CURP (18 caracteres)"
-              maxLength={18}
-              required
-              disabled={loading || exito}
-            />
-          </div>
-
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
-            <h3 className="text-xs sm:text-sm font-bold text-slate-700">Validación de Identidad</h3>
-
-            <div>
-              <label htmlFor="ine" className="block text-xs sm:text-sm font-medium text-slate-600 mb-1">Foto de Credencial (INE)</label>
-              <input
-                id="ine"
-                type="file"
-                name="ine"
-                accept="image/png, image/jpeg, application/pdf"
-                onChange={handleFileChange}
-                className="w-full text-xs sm:text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                disabled={loading || exito}
-              />
-            </div>
-
-            <div>
-            <label htmlFor="reciboLuzAgua" className="block text-xs sm:text-sm font-medium text-slate-600 mb-1">
-              Comprobante de Domicilio (Luz/Agua) <span className="text-slate-400">(opcional)</span>
-            </label>
-            <input
-              id="reciboLuzAgua"
-              type="file"
-              name="reciboLuzAgua"
-              accept="image/png, image/jpeg, application/pdf"
-              onChange={handleFileChange}
-              className="w-full text-xs sm:text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-              disabled={loading || exito}
-            />
-          </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || exito}
-            className="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 text-sm sm:text-base shadow-sm"
-          >
-            {loading ? 'Procesando...' : exito ? 'Solicitud enviada' : 'Enviar Solicitud a Revisión'}
-          </button>
-        </form>
-      </div>
+          </form>
+        </div>
+      </main>
     </div>
   );
 }

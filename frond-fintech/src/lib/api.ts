@@ -17,19 +17,24 @@ export async function fetchAPI(endpoint: string, options: RequestInit = {}) {
     headers,
   });
 
-  if (!response.ok) {
+if (!response.ok) {
     if (response.status === 401 && typeof window !== 'undefined') {
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('usuario');
-      window.location.href = '/login';
-      return;
+      // Si la petición original ERA el login, no recargamos la página.
+      // Así permitimos que el mensaje de error llegue al formulario.
+      if (!endpoint.includes('/login')) {
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('usuario');
+        sessionStorage.removeItem('rol');
+        sessionStorage.removeItem('idUsuario');
+        window.location.href = '/login';
+        return;
+      }
     }
 
     const error = await response.json().catch(() => ({}));
     console.error("Detalle del error del backend:", error);
-    throw new Error(error.Mensaje || 'Ocurrió un error en la petición');
+    throw new Error(error.mensaje || error.Mensaje || 'Ocurrió un error en la petición');
   }
-
   if (response.status === 204) {
     return null;
   }

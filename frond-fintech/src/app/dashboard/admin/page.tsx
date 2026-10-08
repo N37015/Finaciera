@@ -5,6 +5,53 @@ import { useRouter } from 'next/navigation';
 import { fetchAPI } from '@/lib/api';
 import { useFeedback } from '@/components/feedback';
 
+type Tab = 'solicitudes' | 'cartera' | 'usuarios' | 'spei';
+
+const formatoMoneda = (n: number) =>
+  (n ?? 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+
+const botonPrimario =
+  'rounded-lg bg-[#0F2B52] px-4 py-2 text-sm font-medium text-white hover:bg-[#1B4079] disabled:opacity-60';
+const botonSecundario =
+  'rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100';
+const botonPeligro =
+  'rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50';
+const inputClass =
+  'w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 placeholder:text-slate-400 outline-none focus:border-[#0F2B52] focus:ring-2 focus:ring-[#0F2B52]/20';
+
+function Panel({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-4 sm:px-6">
+        <h2 className="text-lg font-semibold text-slate-900">{titulo}</h2>
+      </div>
+      <div className="p-4 sm:p-6">{children}</div>
+    </section>
+  );
+}
+
+function Vacio({ titulo, texto }: { titulo: string; texto: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-300 py-12 text-center">
+      <p className="font-medium text-slate-800">{titulo}</p>
+      <p className="mt-1 text-sm text-slate-500">{texto}</p>
+    </div>
+  );
+}
+
+function EstadoChip({ estado }: { estado: string }) {
+  const activo = estado === 'ACTIVO';
+  return (
+    <span
+      className={`inline-flex rounded px-2 py-1 text-xs font-medium ${
+        activo ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800'
+      }`}
+    >
+      {estado}
+    </span>
+  );
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { notificar, confirmar, ui } = useFeedback();
@@ -19,8 +66,8 @@ export default function AdminDashboardPage() {
   const [clabeSpei, setClabeSpei] = useState('');
   const [montoSpei, setMontoSpei] = useState('');
 
-  // ESTADO DE LA PESTAÑA ACTIVA
-  const [activeTab, setActiveTab] = useState<'solicitudes' | 'cartera' | 'usuarios' | 'spei'>('solicitudes');
+  // PESTAÑA ACTIVA
+  const [activeTab, setActiveTab] = useState<Tab>('solicitudes');
 
   useEffect(() => {
     const userData = sessionStorage.getItem('usuario');
@@ -64,6 +111,11 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleCerrarSesion = () => {
+    sessionStorage.clear();
+    window.location.replace('/login');
+  };
+
   const aprobarSolicitud = async (id: number) => {
     const ok = await confirmar({
       titulo: 'Aprobar crédito',
@@ -77,7 +129,7 @@ export default function AdminDashboardPage() {
       // duracion = 0 -> el toast se queda hasta que el admin lo cierre (para copiar la CLABE)
       notificar('ok', 'Préstamo aprobado. El cliente debe pagar a la CLABE:', res.clabe, 0);
       cargarDatosAdmin();
-      setActiveTab('cartera'); // Te lleva a la cartera automáticamente al aprobar
+      setActiveTab('cartera');
     } catch (error: any) {
       notificar('error', 'No se pudo aprobar', error.message);
     }
@@ -108,146 +160,138 @@ export default function AdminDashboardPage() {
         method: 'POST',
         body: JSON.stringify({
           clabe: clabeSpei,
-          monto: parseFloat(montoSpei)
-        })
+          monto: parseFloat(montoSpei),
+        }),
       });
       notificar('ok', res.mensaje, `Saldo restante: $${res.saldoRestante}`);
       setClabeSpei('');
       setMontoSpei('');
       cargarDatosAdmin();
-      setActiveTab('cartera'); // Te lleva a la cartera para ver el saldo actualizado
+      setActiveTab('cartera');
     } catch (error: any) {
       notificar('error', 'Error en la transferencia', error.message);
     }
   };
 
-  // FILTRAR SOLO CLIENTES (Ocultar Admins de la tabla de usuarios)
-  const clientesSolo = usuarios.filter(u => u.rol !== 'ADMIN');
+  // Solo clientes (sin admins)
+  const clientesSolo = usuarios.filter((u) => u.rol !== 'ADMIN');
 
-  // FILTRAR LA CARTERA PARA OCULTAR PRÉSTAMOS DEL ADMIN
-  const carteraReal = prestamosClientes.filter(p =>
-    !p.email.toLowerCase().includes('admin') &&
-    !p.cliente.toLowerCase().includes('admin')
+  // Cartera sin préstamos del admin
+  const carteraReal = prestamosClientes.filter(
+    (p) =>
+      !p.email.toLowerCase().includes('admin') &&
+      !p.cliente.toLowerCase().includes('admin')
   );
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-lg font-medium text-slate-500 animate-pulse">Cargando panel de Backoffice...</div>
-    </div>
-  );
+  const progreso = (p: any) => {
+    const pagado = p.totalAPagar - p.saldoPendiente;
+    const porcentaje = p.totalAPagar > 0 ? Math.min(100, Math.max(0, (pagado / p.totalAPagar) * 100)) : 0;
+    return { pagado, porcentaje };
+  };
+
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: 'solicitudes', label: 'Solicitudes pendientes', count: solicitudes.length },
+    { id: 'cartera', label: 'Cartera de préstamos' },
+    { id: 'usuarios', label: 'Cuentas de clientes' },
+    { id: 'spei', label: 'Simulador SPEI' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F6FB] text-slate-600">
+        Cargando el panel...
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-12">
-      {/* HEADER Y NAVEGACIÓN */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
-          <div className="flex justify-between items-end mb-6">
-            <div>
-              <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                Backoffice <span className="text-blue-600 font-medium">| NovaFintech</span>
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">Panel de control y administración financiera.</p>
+    <div className="min-h-screen bg-[#F2F6FB] pb-12 text-slate-900">
+      {/* ENCABEZADO Y PESTAÑAS */}
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0F2B52] text-sm font-bold text-white">
+                N
+              </span>
+              <span>Backoffice</span>
             </div>
-
-            {/* NOTIFICACIÓN VISUAL DE SOLICITUDES PENDIENTES */}
-            {solicitudes.length > 0 && (
-              <div className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full animate-bounce">
-                {solicitudes.length} Solicitud(es) Nueva(s)
-              </div>
-            )}
+            <button onClick={handleCerrarSesion} className={botonSecundario}>
+              Cerrar sesión
+            </button>
           </div>
 
-          {/* MENÚ DE PESTAÑAS (TABS) */}
-          <nav className="flex space-x-1 border-b border-slate-200 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('solicitudes')}
-              className={`py-3 px-4 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'solicitudes' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-               Solicitudes Pendientes
-            </button>
-            <button
-              onClick={() => setActiveTab('cartera')}
-              className={`py-3 px-4 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'cartera' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-               Cartera de Préstamos
-            </button>
-            <button
-              onClick={() => setActiveTab('usuarios')}
-              className={`py-3 px-4 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'usuarios' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-               Cuentas de Clientes
-            </button>
-            <button
-              onClick={() => setActiveTab('spei')}
-              className={`py-3 px-4 text-sm font-semibold border-b-2 whitespace-nowrap transition-colors ${
-                activeTab === 'spei' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-              }`}
-            >
-               Simulador SPEI
-            </button>
+          <nav role="tablist" aria-label="Secciones" className="-mb-px flex gap-1 overflow-x-auto">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                role="tab"
+                aria-selected={activeTab === t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium ${
+                  activeTab === t.id
+                    ? 'border-[#0F2B52] text-[#0F2B52]'
+                    : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {t.label}
+                {t.count ? (
+                  <span className="rounded-full bg-[#0F2B52] px-2 py-0.5 text-xs font-semibold text-white">
+                    {t.count}
+                  </span>
+                ) : null}
+              </button>
+            ))}
           </nav>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
-
-        {/* =========================================
-            PESTAÑA 1: SOLICITUDES PENDIENTES
-        ============================================= */}
+      <main className="mx-auto mt-6 max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* PESTAÑA 1: SOLICITUDES */}
         {activeTab === 'solicitudes' && (
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
-            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50 flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-slate-800">Por Revisar</h2>
-            </div>
-
-            <div className="p-6">
-              {solicitudes.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                  <span className="text-5xl">📭</span>
-                  <h3 className="mt-4 text-base font-medium text-slate-900">Bandeja limpia</h3>
-                  <p className="mt-1 text-sm text-slate-500">No hay solicitudes pendientes de aprobación.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead>
+          <Panel titulo="Solicitudes por revisar">
+            {solicitudes.length === 0 ? (
+              <Vacio titulo="No hay solicitudes pendientes" texto="Cuando un cliente envíe una, aparecerá aquí." />
+            ) : (
+              <>
+                {/* Tabla: pantallas medianas y grandes */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-slate-200 text-slate-600">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Cliente</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Monto Solicitado</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Documentos</th>
-                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acción</th>
+                        <th className="py-3 pr-4 font-medium">Cliente</th>
+                        <th className="py-3 pr-4 font-medium">Monto solicitado</th>
+                        <th className="py-3 pr-4 font-medium">Documentos</th>
+                        <th className="py-3 text-right font-medium">Acción</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
+                    <tbody className="divide-y divide-slate-100">
                       {solicitudes.map((s) => (
-                        <tr key={s.idSolicitud} className="hover:bg-slate-50">
-                          <td className="px-4 py-4">
-                            <div className="text-sm font-bold text-slate-900">{s.nombreCliente}</div>
+                        <tr key={s.idSolicitud}>
+                          <td className="py-4 pr-4">
+                            <div className="font-semibold text-slate-900">{s.nombreCliente}</div>
                             <div className="text-xs text-slate-500">CURP: {s.curp}</div>
-                            <div className="text-xs text-slate-400">ID Solicitud: #{s.idSolicitud}</div>
+                            <div className="text-xs text-slate-500">Solicitud #{s.idSolicitud}</div>
                           </td>
-                          <td className="px-4 py-4">
-                            <div className="text-lg font-black text-blue-600">${s.montoSolicitado}</div>
-                            <div className="text-xs font-medium text-slate-500">{s.plazoMeses} meses</div>
+                          <td className="py-4 pr-4">
+                            <div className="text-lg font-semibold tabular-nums text-[#0F2B52]">
+                              {formatoMoneda(s.montoSolicitado)}
+                            </div>
+                            <div className="text-xs text-slate-500">{s.plazoMeses} meses</div>
                           </td>
-                          <td className="px-4 py-4">
-                            <div className="flex flex-col gap-1 text-xs text-slate-600">
-                              <span>📄 INE: <span className="text-slate-400">{s.ine}</span></span>
-                              <span>📄 Domicilio: <span className="text-slate-400">{s.recibo}</span></span>
+                          <td className="py-4 pr-4">
+                            <div className="space-y-1 text-xs text-slate-600">
+                              <p>
+                                INE: <span className="break-all text-slate-500">{s.ine || 'Sin archivo'}</span>
+                              </p>
+                              <p>
+                                Domicilio: <span className="break-all text-slate-500">{s.recibo || 'Sin archivo'}</span>
+                              </p>
                             </div>
                           </td>
-                          <td className="px-4 py-4 text-right">
-                            <button
-                              onClick={() => aprobarSolicitud(s.idSolicitud)}
-                              className="px-5 py-2 bg-green-600 rounded-lg font-bold text-xs text-white uppercase hover:bg-green-700 transition-colors shadow-md"
-                            >
-                              Aprobar Crédito
+                          <td className="py-4 text-right">
+                            <button onClick={() => aprobarSolicitud(s.idSolicitud)} className={botonPrimario}>
+                              Aprobar crédito
                             </button>
                           </td>
                         </tr>
@@ -255,69 +299,96 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-          </section>
+
+                {/* Tarjetas: celulares */}
+                <ul className="space-y-4 md:hidden">
+                  {solicitudes.map((s) => (
+                    <li key={s.idSolicitud} className="rounded-lg border border-slate-200 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-slate-900">{s.nombreCliente}</p>
+                          <p className="text-xs text-slate-500">CURP: {s.curp}</p>
+                          <p className="text-xs text-slate-500">Solicitud #{s.idSolicitud}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-semibold tabular-nums text-[#0F2B52]">
+                            {formatoMoneda(s.montoSolicitado)}
+                          </p>
+                          <p className="text-xs text-slate-500">{s.plazoMeses} meses</p>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-1 text-xs text-slate-600">
+                        <p>
+                          INE: <span className="break-all text-slate-500">{s.ine || 'Sin archivo'}</span>
+                        </p>
+                        <p>
+                          Domicilio: <span className="break-all text-slate-500">{s.recibo || 'Sin archivo'}</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => aprobarSolicitud(s.idSolicitud)}
+                        className={`${botonPrimario} mt-4 w-full`}
+                      >
+                        Aprobar crédito
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </Panel>
         )}
 
-        {/* =========================================
-            PESTAÑA 2: CARTERA DE PRÉSTAMOS
-        ============================================= */}
+        {/* PESTAÑA 2: CARTERA */}
         {activeTab === 'cartera' && (
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in">
-            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
-              <h2 className="text-lg font-semibold text-slate-800">Estado de Cuenta Global</h2>
-            </div>
-
-            <div className="p-6">
-              {carteraReal.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
-                  <span className="text-5xl"></span>
-                  <p className="mt-4 text-sm text-slate-500">Aún no hay préstamos activos ni históricos.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead>
+          <Panel titulo="Cartera de préstamos">
+            {carteraReal.length === 0 ? (
+              <Vacio titulo="Aún no hay préstamos" texto="Los préstamos aprobados aparecerán aquí." />
+            ) : (
+              <>
+                {/* Tabla: pantallas medianas y grandes */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-slate-200 text-slate-600">
                       <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Cliente</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Estado</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Balance Financiero</th>
+                        <th className="py-3 pr-4 font-medium">Cliente</th>
+                        <th className="py-3 pr-4 font-medium">Estado</th>
+                        <th className="w-1/2 py-3 font-medium">Avance de pago</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
+                    <tbody className="divide-y divide-slate-100">
                       {carteraReal.map((p) => {
-                        const montoPagado = p.montoAprobado - p.saldoPendiente;
-                        const porcentajePagado = Math.min(100, Math.max(0, (montoPagado / p.montoAprobado) * 100));
-
+                        const { pagado, porcentaje } = progreso(p);
                         return (
-                          <tr key={p.idPrestamo} className="hover:bg-slate-50">
-                            <td className="px-4 py-4">
-                              <div className="text-sm font-bold text-slate-900">{p.cliente}</div>
+                          <tr key={p.idPrestamo}>
+                            <td className="py-4 pr-4">
+                              <div className="font-semibold text-slate-900">{p.cliente}</div>
                               <div className="text-xs text-slate-500">{p.email}</div>
-                              <div className="text-xs text-slate-400">Préstamo #{p.idPrestamo}</div>
+                              <div className="text-xs text-slate-500">Préstamo #{p.idPrestamo}</div>
                             </td>
-                            <td className="px-4 py-4">
-                              <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border ${
-                                p.estado === 'ACTIVO'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              }`}>
-                                {p.estado}
-                              </span>
+                            <td className="py-4 pr-4">
+                              <EstadoChip estado={p.estado} />
                             </td>
-                            <td className="px-4 py-4 w-1/2">
-                              {/* BARRA DE PROGRESO DE PAGO */}
-                              <div className="mb-2 flex justify-between text-xs">
-                                <span className="font-semibold text-slate-700">Prestado: ${p.montoAprobado}</span>
-                                <span className="font-bold text-blue-600">Pagado: ${montoPagado}</span>
+                            <td className="py-4">
+                              <div className="mb-2 flex justify-between text-xs text-slate-600">
+                                <span>Total a pagar: {formatoMoneda(p.totalAPagar)}</span>
+                                <span>Pagado: {formatoMoneda(pagado)}</span>
                               </div>
-                              <div className="w-full bg-slate-200 rounded-full h-2.5 mb-1 overflow-hidden">
-                                <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${porcentajePagado}%` }}></div>
+                              <div
+                                className="h-2 w-full overflow-hidden rounded-full bg-slate-200"
+                                role="progressbar"
+                                aria-valuenow={Math.round(porcentaje)}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              >
+                                <div className="h-2 rounded-full bg-[#0F2B52]" style={{ width: `${porcentaje}%` }} />
                               </div>
-                              <div className="text-right text-xs font-bold text-slate-500">
-                                Restante por pagar: <span className={p.saldoPendiente > 0 ? 'text-red-500' : 'text-emerald-500'}>${p.saldoPendiente}</span>
-                              </div>
+                              <p className="mt-1 text-right text-xs text-slate-600">
+                                Por pagar:{' '}
+                                <span className={`font-semibold ${p.saldoPendiente > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                                  {formatoMoneda(p.saldoPendiente)}
+                                </span>
+                              </p>
                             </td>
                           </tr>
                         );
@@ -325,119 +396,149 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
-            </div>
-          </section>
+
+                {/* Tarjetas: celulares */}
+                <ul className="space-y-4 md:hidden">
+                  {carteraReal.map((p) => {
+                    const { pagado, porcentaje } = progreso(p);
+                    return (
+                      <li key={p.idPrestamo} className="rounded-lg border border-slate-200 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900">{p.cliente}</p>
+                            <p className="break-all text-xs text-slate-500">{p.email}</p>
+                            <p className="text-xs text-slate-500">Préstamo #{p.idPrestamo}</p>
+                          </div>
+                          <EstadoChip estado={p.estado} />
+                        </div>
+                        <div className="mt-4 flex justify-between text-xs text-slate-600">
+                          <span>Total a pagar: {formatoMoneda(p.totalAPagar)}</span>
+                          <span>Pagado: {formatoMoneda(pagado)}</span>
+                        </div>
+                        <div
+                          className="mt-2 h-2 w-full overflow-hidden rounded-full bg-slate-200"
+                          role="progressbar"
+                          aria-valuenow={Math.round(porcentaje)}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                        >
+                          <div className="h-2 rounded-full bg-[#0F2B52]" style={{ width: `${porcentaje}%` }} />
+                        </div>
+                        <p className="mt-1 text-right text-xs text-slate-600">
+                          Por pagar:{' '}
+                          <span className={`font-semibold ${p.saldoPendiente > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                            {formatoMoneda(p.saldoPendiente)}
+                          </span>
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </>
+            )}
+          </Panel>
         )}
 
-        {/* =========================================
-            PESTAÑA 3: CUENTAS DE CLIENTES
-        ============================================= */}
+        {/* PESTAÑA 3: CLIENTES */}
         {activeTab === 'usuarios' && (
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-fade-in max-w-4xl mx-auto">
-            <div className="px-6 py-5 border-b border-slate-200 bg-slate-50">
-              <h2 className="text-lg font-semibold text-slate-800">Cuentas Registradas en el Sistema</h2>
-            </div>
-            <div className="p-0 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-white">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Nombre del Cliente</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Correo</th>
-                    <th className="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase">Acción</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {clientesSolo.length === 0 ? (
+          <Panel titulo="Cuentas registradas">
+            {clientesSolo.length === 0 ? (
+              <Vacio titulo="No hay clientes registrados" texto="Aparecerán aquí cuando se den de alta." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-slate-200 text-slate-600">
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-500">No hay clientes registrados.</td>
+                      <th className="hidden py-3 pr-4 font-medium sm:table-cell">ID</th>
+                      <th className="py-3 pr-4 font-medium">Cliente</th>
+                      <th className="py-3 text-right font-medium">Acción</th>
                     </tr>
-                  ) : (
-                    clientesSolo.map((u) => (
-                      <tr key={u.idUsuario} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 text-sm font-medium text-slate-400">#{u.idUsuario}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-slate-800">{u.nombre}</td>
-                        <td className="px-6 py-4 text-sm text-slate-500">{u.email}</td>
-                        <td className="px-6 py-4 text-right">
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {clientesSolo.map((u) => (
+                      <tr key={u.idUsuario}>
+                        <td className="hidden py-4 pr-4 text-slate-500 sm:table-cell">#{u.idUsuario}</td>
+                        <td className="py-4 pr-4">
+                          <div className="font-semibold text-slate-900">{u.nombre}</div>
+                          <div className="break-all text-xs text-slate-500">{u.email}</div>
+                        </td>
+                        <td className="py-4 text-right">
                           <button
                             onClick={() => eliminarUsuarioAdmin(u.idUsuario, u.nombre)}
-                            className="text-xs text-red-600 hover:text-white hover:bg-red-600 border border-red-600 px-3 py-1.5 rounded transition-colors font-semibold"
+                            className={botonPeligro}
                           >
-                            Eliminar Cliente
+                            Eliminar
                           </button>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
         )}
 
-        {/* =========================================
-            PESTAÑA 4: SIMULADOR SPEI
-        ============================================= */}
+        {/* PESTAÑA 4: SIMULADOR SPEI */}
         {activeTab === 'spei' && (
-          <section className="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 overflow-hidden text-white max-w-3xl mx-auto animate-fade-in">
-            <div className="px-8 py-6 border-b border-slate-800 bg-slate-950/50 flex items-center gap-3">
-              <span className="text-3xl"></span>
-              <div>
-                <h2 className="text-xl font-bold text-white">Simulador de Webhook SPEI</h2>
-                <p className="text-sm text-slate-400 mt-1">Simula que el Banco de México ha enviado una transferencia al sistema.</p>
-              </div>
-            </div>
+          <div className="mx-auto max-w-xl">
+            <Panel titulo="Simulador de transferencia SPEI">
+              <p className="text-sm text-slate-600">
+                Herramienta de pruebas: registra un abono como si el banco lo hubiera enviado a la CLABE del préstamo.
+              </p>
 
-            <div className="p-8">
-              <form onSubmit={simularPagoSpei} className="space-y-6">
+              <form onSubmit={simularPagoSpei} className="mt-6 space-y-5">
                 <div>
-                  <label className="block text-xs font-bold mb-2 text-slate-300 uppercase tracking-widest">CLABE Interbancaria (18 dígitos)</label>
+                  <label htmlFor="clabe" className="mb-1 block text-sm font-medium text-slate-700">
+                    CLABE interbancaria
+                  </label>
                   <input
+                    id="clabe"
                     type="text"
+                    inputMode="numeric"
                     value={clabeSpei}
                     onChange={(e) => setClabeSpei(e.target.value)}
-                    className="w-full px-5 py-4 rounded-xl bg-slate-800 border-2 border-slate-700 text-white text-lg font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="Ej. 646180111000000006"
+                    className={`${inputClass} font-mono`}
+                    placeholder="18 dígitos"
                     maxLength={18}
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold mb-2 text-slate-300 uppercase tracking-widest">Monto del Abono ($)</label>
-                  <input
-                    type="number"
-                    value={montoSpei}
-                    onChange={(e) => setMontoSpei(e.target.value)}
-                    className="w-full px-5 py-4 rounded-xl bg-slate-800 border-2 border-slate-700 text-white text-lg font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
-                    placeholder="1000.00"
-                    min="1"
-                    required
-                  />
+                  <label htmlFor="montoSpei" className="mb-1 block text-sm font-medium text-slate-700">
+                    Monto del abono
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                    <input
+                      id="montoSpei"
+                      type="number"
+                      inputMode="decimal"
+                      value={montoSpei}
+                      onChange={(e) => setMontoSpei(e.target.value)}
+                      className={`${inputClass} pl-8`}
+                      placeholder="1000.00"
+                      min="1"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-4 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.4)]"
+                  className="h-12 w-full rounded-lg bg-[#0F2B52] font-semibold text-white hover:bg-[#1B4079]"
                 >
-                  Ejecutar Transferencia Simulada
+                  Registrar transferencia
                 </button>
               </form>
-            </div>
-          </section>
+            </Panel>
+          </div>
         )}
-
       </main>
 
       {/* Toasts y modal de confirmación */}
       {ui}
-
-      {/* Estilo para transición suave */}
-      <style dangerouslySetInnerHTML={{__html: `
-        .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-      `}} />
     </div>
   );
 }
